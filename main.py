@@ -1,12 +1,8 @@
-# python main.py --name betaH_fashion -d fashion -l betaH --lr 0.001 -b 16 -e 1 --betaH-B 15
-
 import argparse
 import logging
 import sys
 import os
 from configparser import ConfigParser
-import wandb
-import torch
 
 from torch import optim
 
@@ -18,8 +14,7 @@ from utils.datasets import get_dataloaders, get_img_size, DATASETS
 from utils.helpers import (create_safe_directory, get_device, set_seed, get_n_param,
                            get_config_section, update_namespace_, FormatterNoDuplicate)
 from utils.visualize import GifTraversalsTraining
-from utils.miroslav import wandb_auth, latent_viz, cluster_metric
-from utils.visualize import Visualizer
+import wandb
 
 CONFIG_FILE = "hyperparam.ini"
 RES_DIR = "results"
@@ -46,7 +41,7 @@ def parse_arguments(args_to_parse):
 
     # General options
     general = parser.add_argument_group('General options')
-    general.add_argument('-name', '--name', type=str,
+    general.add_argument('name', type=str,
                          help="Name of the model for storing and loading purposes.")
     general.add_argument('-L', '--log-level', help="Logging levels.",
                          default=default_config['log_level'], choices=LOG_LEVELS)
@@ -57,8 +52,6 @@ def parse_arguments(args_to_parse):
                          default=default_config['no_cuda'],
                          help='Disables CUDA training, even when have one.')
     general.add_argument('-s', '--seed', type=int, default=default_config['seed'],
-                         help='Random seed. Can be `None` for stochastic behavior.')
-    general.add_argument('-max_traversal', '--max_traversal', type=float, default=0.475,
                          help='Random seed. Can be `None` for stochastic behavior.')
 
     # Learning options
@@ -79,12 +72,6 @@ def parse_arguments(args_to_parse):
                           help='Batch size for training.')
     training.add_argument('--lr', type=float, default=default_config['lr'],
                           help='Learning rate.')
-    training.add_argument('--dry_run', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=False,
-                        help='Whether to use WANDB in offline mode.')
-    training.add_argument('--wandb_log', type=lambda x: False if x in ["False", "false", "", "None"] else True, default=True,
-                help='Whether to use WANDB - this has implications for the training loop since if we want to log, we compute the metrics over training')                
-    training.add_argument('--wandb_key', type=str, default=None,
-                help='Path to WANDB key')                
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -174,6 +161,7 @@ def parse_arguments(args_to_parse):
 
     return args
 
+
 def main(args):
     """Main train and evaluation function.
 
@@ -182,12 +170,6 @@ def main(args):
     args: argparse.Namespace
         Arguments
     """
-    if args.dry_run:
-        os.environ['WANDB_MODE'] = 'dryrun'
-    wandb_auth(dir_path=args.wandb_key)
-    wandb.init(project='atmlbetavae', entity='atml', group="miroslav")
-    wandb.config.update(args)
-
     formatter = logging.Formatter('%(asctime)s %(levelname)s - %(funcName)s: %(message)s',
                                   "%H:%M:%S")
     logger = logging.getLogger(__name__)
@@ -202,6 +184,7 @@ def main(args):
     exp_dir = os.path.join(RES_DIR, args.name)
     logger.info("Root directory for saving and loading experiments: {}".format(exp_dir))
 
+    
     if not args.is_eval_only:
 
         create_safe_directory(exp_dir, logger=logger)
@@ -239,38 +222,19 @@ def main(args):
                           gif_visualizer=gif_visualizer)
         trainer(train_loader,
                 epochs=args.epochs,
-                checkpoint_every=args.checkpoint_every,
-                wandb_log = args.wandb_log)
-        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, steps=100, device=device)
-        
-        # TODO probably drop this, too hard and no time
-        cluster_score = cluster_metric(latent_data["post_samples"], latent_data["labels"], 5)
-        print(f"Cluster metric score: {cluster_score}")
-
-        model_dir = os.path.join(RES_DIR, args.name)
-        viz = Visualizer(model=model,
-                    model_dir=model_dir,
-                    dataset=args.dataset,
-                    max_traversal=args.max_traversal,
-                    loss_of_interest='kl_loss_',
-                    upsample_factor=1)
-
-        traversal_plots = {}
-        base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
-        for model_name, model in dim_reduction_models.items():
-            traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
-
-        if args.wandb_log:
-            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score})
+                checkpoint_every=args.checkpoint_every,)
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
 
+    
+
     if args.is_metrics or not args.no_test:
-        print("Evaluation time.")
         model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
+
+        
         test_loader = get_dataloaders(metadata["dataset"],
                                       batch_size=args.eval_batchsize,
                                       shuffle=False,
@@ -279,11 +243,19 @@ def main(args):
                             n_data=len(test_loader.dataset),
                             device=device,
                             **vars(args))
+        
+        use_wandb = False
+        if use_wandb:
+            loss = args.loss
+            wandb.init(project="atmlbetavae", config= {"VAE_loss": args.loss})
+            if loss == "betaH":
+                beta = loss_f.beta
+                wandb.config["Beta"] = beta
         evaluator = Evaluator(model, loss_f,
                               device=device,
                               logger=logger,
                               save_dir=exp_dir,
-                              is_progress_bar=not args.no_progress_bar)
+                              is_progress_bar=not args.no_progress_bar, use_wandb = use_wandb)
 
         evaluator(test_loader, is_metrics=args.is_metrics, is_losses=not args.no_test)
 

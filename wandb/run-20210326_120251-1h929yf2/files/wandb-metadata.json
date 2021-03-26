@@ -1,0 +1,28 @@
+{
+    "os": "Linux-5.4.0-70-generic-x86_64-with-glibc2.10",
+    "python": "3.8.5",
+    "heartbeatAt": "2021-03-26T12:02:53.015269",
+    "startedAt": "2021-03-26T12:02:51.338550",
+    "docker": null,
+    "cpu_count": 8,
+    "cuda": null,
+    "args": [
+        "betaB_dsprites",
+        "-d",
+        "dsprites",
+        "--is-metrics",
+        "--is-eval-only"
+    ],
+    "state": "running",
+    "program": "main.py",
+    "codePath": "main.py",
+    "git": {
+        "remote": "https://github.com/Mandelbrot99/disentangling-vae",
+        "commit": "592f4918bbcf49f18747ca7ea8ba9ddc9f640148"
+    },
+    "email": "wildberger.jonas@gmail.com",
+    "root": "/home/jonas/Schreibtisch/backup atml/disentangling-vae",
+    "host": "jonas-Rechner",
+    "username": "jonas",
+    "executable": "/home/jonas/anaconda3/bin/python"
+}
