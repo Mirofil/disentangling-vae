@@ -266,7 +266,7 @@ class Evaluator:
                     imgs_ica = np.reshape(data_imgs, (data_imgs.shape[0], data_imgs.shape[1]**2))
                 else:
                     imgs_ica = np.reshape(dataset.imgs, (dataset.imgs.shape[0], dataset.imgs.shape[1]**2))
-                size = min(1500, len(imgs_ica))
+                size = min(2500, len(imgs_ica))
                 # if self.use_wandb:
                 #     wandb.config["ICA_training_size"] = size
                 idx = np.random.randint(len(imgs_ica), size = size)
