@@ -89,7 +89,7 @@ def parse_arguments(args_to_parse):
     training.add_argument('-d', '--dataset', help="Path to training data.",
                           default=default_config['dataset'], choices=DATASETS)
     training.add_argument('-x', '--experiment',
-                          default=default_config['experiment'], choices=EXPERIMENTS,
+                          default="custom", choices=EXPERIMENTS,
                           help='Predefined experiments to run. If not `custom` this will overwrite some other arguments.')
     training.add_argument('-e', '--epochs', type=int,
                           default=default_config['epochs'],

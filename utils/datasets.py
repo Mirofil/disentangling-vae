@@ -376,13 +376,6 @@ class DSprites(DisentangledDataset):
         self.imgs = dataset_zip['imgs'] if n_samples is None else random.sample(dataset_zip['imgs'], n_samples)
         self.lat_values = dataset_zip['latents_values'] if n_samples is None else random.sample(dataset_zip["latents_values"], n_samples)
 
-        test_size=50000
-        self.imgs_test = self.imgs[-test_size:]
-        self.lat_values_test = self.lat_values[-test_size:]
-        self.imgs = self.imgs[:-test_size]
-        self.lat_values = self.lat_values[:-test_size]
-
-
     def download(self):
         """Download the dataset."""
         os.makedirs(self.root)
@@ -426,7 +419,7 @@ class DSprites(DisentangledDataset):
         latent_indices = np.dot(samples, latents_bases).astype(int)
     
         #use the data generative factors to simulate two sets of images from the dataset
-        imgs_sampled = torch.from_numpy(self.imgs_test[latent_indices]).unsqueeze_(1).float()
+        imgs_sampled = torch.from_numpy(self.imgs[latent_indices]).unsqueeze_(1).float()
 
         #print(imgs_sampled.shape)
         return imgs_sampled
