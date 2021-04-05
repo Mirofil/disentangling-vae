@@ -18,30 +18,32 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data.sampler import SequentialSampler
 
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
+from tqdm import tqdm
 
 def _get_activations(dataloader, length, model, batch_size, dims, device='cuda' if torch.cuda.is_available() else 'cpu'):
     model.eval()
-    if batch_size > length:
-        print(('Warning: batch size is bigger than the data size. '
-               'Setting batch size to data size'))
-        batch_size = length
 
-    pred_arr = np.empty((length, dims))
+    pred_arr = np.empty((len(files), dims))
 
-    for inputs, labels in (dataloader):
-        count = 0
-        batch = inputs.to(device)
+    start_idx = 0
+
+    for batch in tqdm(dataloader):
+        batch = batch.to(device)
+
         with torch.no_grad():
             pred = model(batch)[0]
 
-        pred = torch.flatten(pred, start_dim=1) # to get the dimensionality vector
+        # If model output is not scalar, apply global spatial average pooling.
+        # This happens if you choose a dimensionality not equal 2048.
+        if pred.size(2) != 1 or pred.size(3) != 1:
+            pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
-        if count != 0: # check if the first batch, if not, then just append by concatenation
-            pred_arr = np.concatenate((pred_arr, pred.cpu().detach().numpy()), axis=0)
-        else:
-            pred_arr[:pred.shape[0]] = pred.cpu().detach().numpy()
-        count = count + 1
-    
+        pred = pred.squeeze(3).squeeze(2).cpu().numpy()
+
+        pred_arr[start_idx:start_idx + pred.shape[0]] = pred
+
+        start_idx = start_idx + pred.shape[0]
+
     return pred_arr
 
 def _calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):

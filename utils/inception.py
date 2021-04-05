@@ -2,8 +2,11 @@ import torch
 
 USE_CUSTOM_INCEPTION = True
 
-def get_inception_v3():
-    if USE_CUSTOM_INCEPTION: return fid_inception_v3()
+def get_inception_v3(dims=2048):
+    if USE_CUSTOM_INCEPTION:
+        block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[dims]
+        model = InceptionV3([block_idx]).to('cpu') # TODO: change to cuda?
+        return model
     
     model = torch.hub.load('pytorch/vision:v0.8.2', 'inception_v3', pretrained=True)
     model.eval()

@@ -51,26 +51,36 @@ class NoneTransform(object):
         return image
 
 # TODO: get cuda working
-def _get_activations(dataloader, length, model, batch_size, dims, device='cpu' if torch.cuda.is_available() else 'cpu'):
+def _get_activations(dataloader, length, model, batch_size, dims, device='cuda' if torch.cuda.is_available() else 'cpu'):
     model.eval()
+    model = model.to(device)
+
     if batch_size > length:
         print(('Warning: batch size is bigger than the data size. '
                'Setting batch size to data size'))
         batch_size = length
 
-    pred_arr = np.empty((length))
+    pred_arr = np.empty((length, dims))
 
     start_idx = 0
 
-    for inputs, labels in (dataloader):
-        batch = inputs.to(device)
+    for batch, labels in (dataloader):
+        batch = batch.to(device)
+
         with torch.no_grad():
             pred = model(batch)[0]
 
-        pred = torch.flatten(pred, start_dim=0)
+        # If model output is not scalar, apply global spatial average pooling.
+        # This happens if you choose a dimensionality not equal 2048.
+        if pred.size(2) != 1 or pred.size(3) != 1:
+            pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
+
+        pred = pred.squeeze(3).squeeze(2).cpu().numpy()
+
         pred_arr[start_idx:start_idx + pred.shape[0]] = pred
+
         start_idx = start_idx + pred.shape[0]
-    
+
     return pred_arr
 
 def _calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
@@ -154,12 +164,16 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     vae_output = []
     vae_label = []
     vae_model.eval()
+    device='cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu' # Override for now
+    vae_model = vae_model.to(device)
     
     original_input = []
     original_label = []
     
     print("Running VAE model.")
     for inputs, labels in dataloader:
+        inputs = inputs.to(device)
         outputs = vae_model(inputs)[0]
         for i in range(outputs.shape[0]): #why do we have two separate loops for outputs and labels?
             vae_output.append(outputs[i])
@@ -174,11 +188,18 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     print(vae_output.shape)
     
     print("Outputs calculated. Constructing dataloader.")
+
+    # Get a random subset of the images from the dataset you want to compare FID scores for
+    subset_indices = []
+    for i in range(0,5):
+        n = random.randint(1,1000)
+        subset_indices.append(n)
+    sampler=SequentialSampler(subset_indices)
     
     Transform = transforms.Compose([transforms.Resize((299, 299)), transforms.Lambda(lambda x: x.repeat(3, 1, 1))  if vae_output.shape[1]==1  else NoneTransform()])
     
     dataset_reconstructed = CustomTensorDataset(tensors=(vae_output, vae_label), transform = Transform)
-    dataloader_reconstructed = DataLoader(dataset_reconstructed, batch_size=batch_size)
+    dataloader_reconstructed = DataLoader(dataset_reconstructed, batch_size=batch_size, sampler=sampler)
     print("dataloader_reconstructed built")
     #print(dataset_reconstructed[1][0].shape)
 
@@ -190,9 +211,10 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
         for dim in size:
             dims *= dim
         break
+    dims = 2048 # override for now
     
     dataset_original = CustomTensorDataset(tensors=(original_input, original_label), transform = Transform)
-    dataloader_original = DataLoader(dataset_original, batch_size=batch_size)
+    dataloader_original = DataLoader(dataset_original, batch_size=batch_size, sampler=sampler)
     print("dataloader_original built. Shape is ", dataset_original[1][0].shape)
     
     m1, s1 = _calculate_activation_statistics(dataloader_original, length, model, batch_size, dims)
@@ -216,9 +238,6 @@ if __name__ == "__main__":
     GPU_AVAILABLE = True
 
     vae_model = load_model(directory=MODEL_PATH, is_gpu=GPU_AVAILABLE, filename=MODEL_NAME)
-    device = torch.device("cpu")
-    vae_model = vae_model.to(device)
-    vae_model.eval()
 
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
     if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
