@@ -79,6 +79,7 @@ class Trainer():
         self.sample_size=sample_size
         self.dataset_size=dataset_size
         self.no_shape_classifier=no_shape_classifier
+        self.train_evaluator = None
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -102,8 +103,11 @@ class Trainer():
         self.model.train()
 
         if wandb_log:
-            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, dset_name=self.dset_name, seed=self.seed, higgins_drop_slow=self.higgins_drop_slow, 
-                sample_size=self.sample_size, dataset_size=self.dataset_size, no_shape_classifier=self.no_shape_classifier)
+            if self.train_evaluator is None:
+                train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, dset_name=self.dset_name, seed=self.seed, higgins_drop_slow=self.higgins_drop_slow, 
+                    sample_size=self.sample_size, dataset_size=self.dataset_size, no_shape_classifier=self.no_shape_classifier)
+            else:
+                train_evaluator = self.train_evaluator
         
         for epoch in range(epochs):
             storer = defaultdict(list)

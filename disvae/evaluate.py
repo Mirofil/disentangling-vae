@@ -88,6 +88,7 @@ class Evaluator:
         self.sample_size=sample_size
         self.dataset_size=dataset_size
         self.static_models = {}
+        
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
 
