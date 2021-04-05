@@ -384,9 +384,6 @@ def main(args):
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
 
-        print("Evaluation time.")
-        metadata = load_metadata(exp_dir)
-        # TO-DO: currently uses train datatset
 
         print(model)
         print(model.training)
@@ -394,7 +391,7 @@ def main(args):
         metrics, losses = evaluator(train_loader, is_metrics=True, is_losses=True)
         wandb.log({"final":{"metric":metrics, "loss":losses}})
 
-    if (args.is_metrics or not args.no_test) and metrics.is_eval_only:
+    if (args.is_metrics or not args.no_test) and args.is_eval_only:
         print("Evaluation time.")
         model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)

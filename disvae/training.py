@@ -102,7 +102,7 @@ class Trainer():
         self.model.train()
 
         if wandb_log:
-            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, seed=self.seed, higgins_drop_slow=self.higgins_drop_slow, 
+            train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, dset_name=self.dset_name, seed=self.seed, higgins_drop_slow=self.higgins_drop_slow, 
                 sample_size=self.sample_size, dataset_size=self.dataset_size, no_shape_classifier=self.no_shape_classifier)
         
         for epoch in range(epochs):
