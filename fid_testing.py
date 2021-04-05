@@ -20,11 +20,10 @@ from torch.utils.data.sampler import SequentialSampler
 from utils.datasets import get_dataloaders, get_img_size, DATASETS
 from torch.utils.data import Dataset, TensorDataset, DataLoader
 
-from tqdm import tqdm
-
 import utils.inception
 
 INCEPTION_V3 = utils.inception.get_inception_v3()
+FID_EVAL_SIZE = 40 # Takes about (30 seconds for VAE work) + (45 seconds for 40 samples) on cifar10 -> but high variance
 
 class CustomTensorDataset(Dataset):
 # Tensor Dataset with support for Transforms
@@ -190,10 +189,8 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     print("Outputs calculated. Constructing dataloader.")
 
     # Get a random subset of the images from the dataset you want to compare FID scores for
-    subset_indices = []
-    for i in range(0,5):
-        n = random.randint(1,1000)
-        subset_indices.append(n)
+    num_samples = min(FID_EVAL_SIZE, len(dataloader.dataset))
+    subset_indices = list(np.random.choice(len(dataloader.dataset), num_samples, replace=False))
     sampler=SequentialSampler(subset_indices)
     
     Transform = transforms.Compose([transforms.Resize((299, 299)), transforms.Lambda(lambda x: x.repeat(3, 1, 1))  if vae_output.shape[1]==1  else NoneTransform()])
@@ -233,13 +230,14 @@ if __name__ == "__main__":
     import logging
     import sys
 
-    MODEL_PATH = "results/betaH_mnist"
+    MODEL_PATH = sys.argv[2] # get the model path (e.g. "results/betaH_mnist")
     MODEL_NAME = "model.pt"
     GPU_AVAILABLE = True
 
     vae_model = load_model(directory=MODEL_PATH, is_gpu=GPU_AVAILABLE, filename=MODEL_NAME)
 
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
+    
     if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
         # Get the dataset
         dataloader1 = get_dataloaders(mode, batch_size=128)[0]
