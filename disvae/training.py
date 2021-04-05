@@ -142,6 +142,10 @@ class Trainer():
         delta_time = (default_timer() - start) / 60
         self.logger.info('Finished training after {:.1f} min.'.format(delta_time))
 
+        if wandb_log:
+            return train_evaluator
+        else:
+            return None
 
     def _train_epoch(self, data_loader, storer, epoch):
         """

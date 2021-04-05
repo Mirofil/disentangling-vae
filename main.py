@@ -393,10 +393,13 @@ def main(args):
             model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
-        test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
-                                      batch_size=args.batch_size,
-                                      shuffle=True,
-                                      logger=logger)
+        if args.is_eval_only:
+            test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
+                                        batch_size=args.batch_size,
+                                        shuffle=True,
+                                        logger=logger)
+        else:
+            test_loader, raw_dataset = train_loader, raw_dataset
         loss_f = get_loss_f(args.loss,
                             n_data=len(test_loader.dataset),
                             device=device,

@@ -87,6 +87,7 @@ class Evaluator:
         self.no_shape_classifier = no_shape_classifier
         self.sample_size=sample_size
         self.dataset_size=dataset_size
+        self.static_models = {}
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
 
@@ -238,43 +239,54 @@ class Evaluator:
                 methods["VAE"] = self.model
 
             elif method_name == "PCA":   
-                start = time.time() 
-                self.logger.info("Training PCA...")
-                pca = decomposition.PCA(n_components=self.model.latent_dim, whiten = True)
-                if dataset.imgs.ndim == 4:
-                    data_imgs = dataset.imgs[:,:,:,0]
-                    imgs_pca = np.reshape(data_imgs, (data_imgs.shape[0], data_imgs.shape[1]**2))
-                else: 
-                    imgs_pca = np.reshape(dataset.imgs, (dataset.imgs.shape[0], dataset.imgs.shape[1]**2))
-                size = min(50000, len(imgs_pca))
+                if 'PCA' not in self.static_models.keys():
+                    start = time.time() 
+                    self.logger.info("Training PCA...")
+                    pca = decomposition.PCA(n_components=self.model.latent_dim, whiten = True)
+                    if dataset.imgs.ndim == 4:
+                        data_imgs = dataset.imgs[:,:,:,0]
+                        imgs_pca = np.reshape(data_imgs, (data_imgs.shape[0], data_imgs.shape[1]**2))
+                    else: 
+                        imgs_pca = np.reshape(dataset.imgs, (dataset.imgs.shape[0], dataset.imgs.shape[1]**2))
+                    size = min(50000, len(imgs_pca))
 
-                idx = np.random.randint(len(imgs_pca), size = size)
-                imgs_pca = imgs_pca[idx, :]       #not enough memory for full dataset -> repeat with random subsets               
-                pca.fit(imgs_pca)
-                methods["PCA"] = pca
-                self.logger.info("Done")
+                    idx = np.random.randint(len(imgs_pca), size = size)
+                    imgs_pca = imgs_pca[idx, :]       #not enough memory for full dataset -> repeat with random subsets               
+                    pca.fit(imgs_pca)
+                    methods["PCA"] = pca
+                    self.logger.info("Done")
+                    if 'PCA' not in self.static_models.keys():
+                        self.static_models['PCA'] = pca
+                    runtimes[method_name] = time.time()-start
 
-                runtimes[method_name] = time.time()-start
+                else:
+                    methods["PCA"] = self.static_models["PCA"]
                     
 
             elif method_name == "ICA":
-                start = time.time() 
-                self.logger.info("Training ICA...")
-                ica = decomposition.FastICA(n_components=self.model.latent_dim, max_iter=400)
-                if dataset.imgs.ndim == 4:
-                    data_imgs = dataset.imgs[:,:,:,0]
-                    imgs_ica = np.reshape(data_imgs, (data_imgs.shape[0], data_imgs.shape[1]**2))
+                if 'ICA' not in self.static_models.keys():
+
+                    start = time.time() 
+                    self.logger.info("Training ICA...")
+                    ica = decomposition.FastICA(n_components=self.model.latent_dim, max_iter=400)
+                    if dataset.imgs.ndim == 4:
+                        data_imgs = dataset.imgs[:,:,:,0]
+                        imgs_ica = np.reshape(data_imgs, (data_imgs.shape[0], data_imgs.shape[1]**2))
+                    else:
+                        imgs_ica = np.reshape(dataset.imgs, (dataset.imgs.shape[0], dataset.imgs.shape[1]**2))
+                    size = min(2500, len(imgs_ica))
+                    # if self.use_wandb:
+                    #     wandb.config["ICA_training_size"] = size
+                    idx = np.random.randint(len(imgs_ica), size = size)
+                    imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
+                    ica.fit(imgs_ica)
+                    methods["ICA"] = ica
+                    self.logger.info("Done")
+                    runtimes[method_name] = time.time()-start
+                    if 'ICA' not in self.static_models.keys():
+                        self.static_models['ICA'] = ica
                 else:
-                    imgs_ica = np.reshape(dataset.imgs, (dataset.imgs.shape[0], dataset.imgs.shape[1]**2))
-                size = min(2500, len(imgs_ica))
-                # if self.use_wandb:
-                #     wandb.config["ICA_training_size"] = size
-                idx = np.random.randint(len(imgs_ica), size = size)
-                imgs_ica = imgs_ica[idx, :]       #not enough memory for full dataset -> repeat with random subsets 
-                ica.fit(imgs_ica)
-                methods["ICA"] = ica
-                self.logger.info("Done")
-                runtimes[method_name] = time.time()-start
+                    methods["ICA"] = self.static_models["ICA"]
 
             elif method_name == "T-SNE":
                 continue
