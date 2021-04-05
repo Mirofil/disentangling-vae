@@ -354,7 +354,7 @@ class Evaluator:
         test_acc = {"logreg":{},"linear":{}, "nonlinear":{}, "rf":{}}
         for model_class in ["linear", "nonlinear", "logreg", "rf"]:
             if model_class in ["linear", "nonlinear"]:
-                model = Classifier(latent_dim,hidden_dim,len(dataset.lat_sizes), use_non_linear= True if model_class =="nonlinear" else False)
+                model = Classifier(latent_dim, hidden_dim, len(dataset.lat_sizes), use_non_linear= True if model_class =="nonlinear" else False)
                 
                 model.to(self.device)
                 model.train()
