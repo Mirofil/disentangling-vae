@@ -8,7 +8,9 @@ from configparser import ConfigParser
 import wandb
 import torch
 import time
+import random
 from torch import optim
+import gc
 
 from disvae import init_specific_model, Trainer, Evaluator
 from disvae.utils.modelIO import save_model, load_model, load_metadata
@@ -60,7 +62,7 @@ def parse_arguments(args_to_parse):
     general.add_argument('--no-cuda', action='store_true',
                          default=default_config['no_cuda'],
                          help='Disables CUDA training, even when have one.')
-    general.add_argument('-s', '--seed', type=int, default=default_config['seed'],
+    general.add_argument('-s', '--seed', type=int, default=None,
                          help='Random seed. Can be `None` for stochastic behavior.')
     general.add_argument('-max_traversal', '--max_traversal', type=float, default=0.475,
                          help='Random seed. Can be `None` for stochastic behavior.')
@@ -87,7 +89,7 @@ def parse_arguments(args_to_parse):
     training.add_argument('-d', '--dataset', help="Path to training data.",
                           default=default_config['dataset'], choices=DATASETS)
     training.add_argument('-x', '--experiment',
-                          default=default_config['experiment'], choices=EXPERIMENTS,
+                          default="custom", choices=EXPERIMENTS,
                           help='Predefined experiments to run. If not `custom` this will overwrite some other arguments.')
     training.add_argument('-e', '--epochs', type=int,
                           default=default_config['epochs'],
@@ -109,6 +111,13 @@ def parse_arguments(args_to_parse):
             help='Number of training steps to use per epoch')
     training.add_argument('--higgins_drop_slow', type=bool, default=True,
         help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
+    training.add_argument('--sample_size', type=int, default=64,
+        help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
+    training.add_argument('--dataset_size', type=int, default=10000,
+        help='Whether to drop UMAP/TSNE etc. for computing Higgins metric (if we do not drop them, generating the data takes ~25 hours)')      
+    training.add_argument('--all_latents', type=bool, default=False,
+        help='Whether to use 5 or 4 latents in Dsprites')      
+
 
     # Model Options
     model = parser.add_argument_group('Model specfic options')
@@ -227,6 +236,7 @@ def main(args):
     stream.setLevel(args.log_level.upper())
     stream.setFormatter(formatter)
     logger.addHandler(stream)
+    args.seed = args.seed if args.seed is not None else random.randint(1,10000)
 
     set_seed(args.seed)
     device = get_device(is_gpu=not args.no_cuda)
@@ -263,10 +273,10 @@ def main(args):
         # TRAINS
         if args.model_type == "Burgess":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
-            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.2)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.2)
         elif args.model_type == "Higginsdsprites":
             optimizer = optim.Adagrad(model.parameters(), lr=args.lr)
-            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.2)
+            scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.2)
         elif args.model_type == "Higginsconv":
             optimizer = optim.Adam(model.parameters(), lr=args.lr)
             scheduler = None
@@ -277,6 +287,7 @@ def main(args):
                             n_data=len(train_loader.dataset),
                             device=device,
                             **vars(args))
+        print(model)
         trainer = Trainer(model, optimizer, loss_f,
                           device=device,
                           logger=logger,
@@ -288,93 +299,98 @@ def main(args):
                           steps = args.train_steps,
                           dset_name=args.dataset,
                           higgins_drop_slow=args.higgins_drop_slow,
-                          scheduler=scheduler)
-
+                          scheduler=scheduler,
+                          no_shape_classifier=args.all_latents)
         trainer(train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
                 wandb_log = args.wandb_log)
 
         latents_plots, traversal_plots, cluster_score = {}, {}, {}
-        latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
+        try: 
+            latents_plots, latent_data, dim_reduction_models = latent_viz(model, train_loader, args.dataset, raw_dataset=raw_dataset, steps=100, device=device)
         
+            viz = Visualizer(model=model,
+                        model_dir=exp_dir,
+                        dataset=args.dataset,
+                        max_traversal=args.max_traversal,
+                        loss_of_interest='kl_loss_',
+                        upsample_factor=1)
 
-        model_dir = os.path.join(RES_DIR, new_path)
-        viz = Visualizer(model=model,
-                    model_dir=model_dir,
-                    dataset=args.dataset,
-                    max_traversal=args.max_traversal,
-                    loss_of_interest='kl_loss_',
-                    upsample_factor=1)
+            traversal_plots = {}
+            base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
+            for model_name, viz_model in dim_reduction_models.items():
+                traversal_plots[model_name] = viz.latents_traversal_plot(viz_model, data=base_datum, n_per_latent=50)
 
-        traversal_plots = {}
-        base_datum = next(iter(train_loader))[0][0].unsqueeze(dim=0)
-        for model_name, model in dim_reduction_models.items():
-            traversal_plots[model_name] = viz.latents_traversal_plot(model, data=base_datum, n_per_latent=50)
+            # Original plots from the repo
+            size = (args.n_rows, args.n_cols)
+            # same samples for all plots: sample max then take first `x`data  for all plots
+            num_samples = args.n_cols * args.n_rows
+            samples = get_samples(args.dataset, num_samples, idcs=args.idcs)
 
-        # Original plots from the repo
-        size = (args.n_rows, args.n_cols)
-        # same samples for all plots: sample max then take first `x`data  for all plots
-        num_samples = args.n_cols * args.n_rows
-        samples = get_samples(args.dataset, num_samples, idcs=args.idcs)
-
-        if "all" in args.plots:
-            args.plots = [p for p in PLOT_TYPES if p != "all"]
-        builtin_plots = {}
-        plot_fnames = []
-        for plot_type in args.plots:
-            if plot_type == 'generate-samples':
-                fname, plot = viz.generate_samples(size=size)
-                builtin_plots["generate-samples"] = plot
-            elif plot_type == 'data-samples':
-                fname, plot = viz.data_samples(samples, size=size)
-                builtin_plots["data-samples"] = plot
-            elif plot_type == "reconstruct":
-                fname, plot = viz.reconstruct(samples, size=size)
-                builtin_plots["reconstruct"] = plot
-            elif plot_type == 'traversals':
-                fname, plot =viz.traversals(data=samples[0:1, ...] if args.is_posterior else None,
+            if "all" in args.plots:
+                args.plots = [p for p in PLOT_TYPES if p != "all"]
+            builtin_plots = {}
+            plot_fnames = []
+            for plot_type in args.plots:
+                if plot_type == 'generate-samples':
+                    fname, plot = viz.generate_samples(size=size)
+                    builtin_plots["generate-samples"] = plot
+                elif plot_type == 'data-samples':
+                    fname, plot = viz.data_samples(samples, size=size)
+                    builtin_plots["data-samples"] = plot
+                elif plot_type == "reconstruct":
+                    fname, plot = viz.reconstruct(samples, size=size)
+                    builtin_plots["reconstruct"] = plot
+                elif plot_type == 'traversals':
+                    fname, plot = viz.traversals(data=samples[0:1, ...],
                             n_per_latent=args.n_cols,
                             n_latents=args.n_rows,
                             is_reorder_latents=True)
-                builtin_plots["traversals"] = plot
-            elif plot_type == "reconstruct-traverse":
-                fname, plot = viz.reconstruct_traverse(samples,
-                                        is_posterior=True,
-                                        n_latents=args.n_rows,
-                                        n_per_latent=args.n_cols,
-                                        is_show_text=True)
-                builtin_plots["reconstruct-traverse"] = plot
-            elif plot_type == "gif-traversals":
-                fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
-                builtin_plots["gif-traversals"] = plot
-            else:
-                raise ValueError("Unkown plot_type={}".format(plot_type))
-            plot_fnames.append(fname)
+                    builtin_plots["traversals"] = plot
+                elif plot_type == "reconstruct-traverse":
+                    fname, plot = viz.reconstruct_traverse(samples,
+                                            is_posterior=True,
+                                            n_latents=args.n_rows,
+                                            n_per_latent=args.n_cols,
+                                            is_show_text=True)
+                    builtin_plots["reconstruct-traverse"] = plot
+                elif plot_type == "gif-traversals":
+                    fname, plot = viz.gif_traversals(samples[:args.n_cols, ...], n_latents=args.n_rows)
+                    builtin_plots["gif-traversals"] = plot
+                else:
+                    raise ValueError("Unkown plot_type={}".format(plot_type))
+                plot_fnames.append(fname)
 
-        converted_imgs = {}
-        for k, img in builtin_plots.items():
-            print(f"Converting {k}")
-            try:
-                converted_imgs[k] = wandb.Image(img)
-            except:
-                print(f"Failed to convert {k}")
-
-        if args.wandb_log:
-            wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":converted_imgs})
-            for fname in plot_fnames:
+            converted_imgs = {}
+            for k, img in builtin_plots.items():
+                print(f"Converting {k}")
                 try:
-                    wandb.save(fname)
-                except Exception as e:
-                    print(f"Failed to save {fname} to WANDB. Exception: {e}")
+                    converted_imgs[k] = wandb.Image(img)
+                except:
+                    print(f"Failed to convert {k}")
+
+            if args.wandb_log:
+                wandb.log({"latents":latents_plots, "latent_traversal":traversal_plots, "cluster_metric":cluster_score, "builtin_plots":converted_imgs})
+                for fname in plot_fnames:
+                    try:
+                        wandb.save(fname)
+                    except Exception as e:
+                        print(f"Failed to save {fname} to WANDB. Exception: {e}")
+        except:
+            print("latent visualisation not yet implemented for this dataset")
 
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
+        #free RAM from train loader so test loader can be loaded
+        del train_loader
+        gc.collect()
 
     if args.is_metrics or not args.no_test:
         print("Evaluation time.")
-        model = load_model(exp_dir, is_gpu=not args.no_cuda)
+        if args.is_eval_only:
+            model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
         test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
@@ -385,6 +401,9 @@ def main(args):
                             n_data=len(test_loader.dataset),
                             device=device,
                             **vars(args))
+        print(model)
+        print(model.training)
+        model.eval()
         evaluator = Evaluator(model, loss_f,
                               device=device,
                               logger=logger,
@@ -393,7 +412,10 @@ def main(args):
                               use_wandb=True,
                               seed=args.seed,
                               higgins_drop_slow=args.higgins_drop_slow,
-                              dset_name=args.dataset,)
+                              dset_name=args.dataset,
+                              sample_size=args.sample_size,
+                              dataset_size=args.dataset_size,
+                              no_shape_classifier=args.all_latents)
 
         metrics, losses = evaluator(test_loader, is_metrics=True, is_losses=True)
         wandb.log({"final":{"metric":metrics, "loss":losses}})
