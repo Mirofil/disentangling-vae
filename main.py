@@ -383,9 +383,6 @@ def main(args):
 
         # SAVE MODEL AND EXPERIMENT INFORMATION
         save_model(trainer.model, exp_dir, metadata=vars(args))
-        #free RAM from train loader so test loader can be loaded
-        del train_loader
-        gc.collect()
 
         print("Evaluation time.")
         metadata = load_metadata(exp_dir)
