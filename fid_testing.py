@@ -23,7 +23,7 @@ from torch.utils.data import Dataset, TensorDataset, DataLoader
 import utils.inception
 
 INCEPTION_V3 = utils.inception.get_inception_v3()
-FID_EVAL_SIZE = 40 # Takes about (30 seconds for VAE work) + (45 seconds for 40 samples) on cifar10 -> but high variance
+FID_EVAL_SIZE = 100000 # massive, code will train on full dataset
 
 class CustomTensorDataset(Dataset):
 # Tensor Dataset with support for Transforms
