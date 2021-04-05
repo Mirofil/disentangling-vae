@@ -301,7 +301,7 @@ def main(args):
                           higgins_drop_slow=args.higgins_drop_slow,
                           scheduler=scheduler,
                           no_shape_classifier=args.all_latents)
-        trainer(train_loader,
+        evaluator = trainer(train_loader,
                 epochs=args.epochs,
                 checkpoint_every=args.checkpoint_every,
                 wandb_log = args.wandb_log)
@@ -407,18 +407,21 @@ def main(args):
         print(model)
         print(model.training)
         model.eval()
-        evaluator = Evaluator(model, loss_f,
-                              device=device,
-                              logger=logger,
-                              save_dir=exp_dir,
-                              is_progress_bar=not args.no_progress_bar, 
-                              use_wandb=True,
-                              seed=args.seed,
-                              higgins_drop_slow=args.higgins_drop_slow,
-                              dset_name=args.dataset,
-                              sample_size=args.sample_size,
-                              dataset_size=args.dataset_size,
-                              no_shape_classifier=args.all_latents)
+        if args.is_eval_only:
+            evaluator = Evaluator(model, loss_f,
+                                device=device,
+                                logger=logger,
+                                save_dir=exp_dir,
+                                is_progress_bar=not args.no_progress_bar, 
+                                use_wandb=True,
+                                seed=args.seed,
+                                higgins_drop_slow=args.higgins_drop_slow,
+                                dset_name=args.dataset,
+                                sample_size=args.sample_size,
+                                dataset_size=args.dataset_size,
+                                no_shape_classifier=args.all_latents)
+        else:
+            pass
 
         metrics, losses = evaluator(test_loader, is_metrics=True, is_losses=True)
         wandb.log({"final":{"metric":metrics, "loss":losses}})
