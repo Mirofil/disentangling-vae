@@ -387,19 +387,26 @@ def main(args):
         del train_loader
         gc.collect()
 
-    if args.is_metrics or not args.no_test:
         print("Evaluation time.")
-        if args.is_eval_only:
-            model = load_model(exp_dir, is_gpu=not args.no_cuda)
         metadata = load_metadata(exp_dir)
         # TO-DO: currently uses train datatset
-        if args.is_eval_only:
-            test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
-                                        batch_size=args.batch_size,
-                                        shuffle=True,
-                                        logger=logger)
-        else:
-            test_loader, raw_dataset = train_loader, raw_dataset
+
+        print(model)
+        print(model.training)
+        model.eval()
+        metrics, losses = evaluator(train_loader, is_metrics=True, is_losses=True)
+        wandb.log({"final":{"metric":metrics, "loss":losses}})
+
+    if (args.is_metrics or not args.no_test) and metrics.is_eval_only:
+        print("Evaluation time.")
+        model = load_model(exp_dir, is_gpu=not args.no_cuda)
+        metadata = load_metadata(exp_dir)
+        # TO-DO: currently uses train datatset
+        test_loader, raw_dataset = get_dataloaders(metadata["dataset"],
+                                    batch_size=args.batch_size,
+                                    shuffle=True,
+                                    logger=logger)
+
         loss_f = get_loss_f(args.loss,
                             n_data=len(test_loader.dataset),
                             device=device,
