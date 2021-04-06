@@ -58,7 +58,8 @@ class Trainer():
                  , scheduler = None,
                  sample_size=35,
                  dataset_size=1500,
-                 no_shape_classifier=False):
+                 no_shape_classifier=False,
+                 calc_fid = False):
 
         self.device = device
         self.model = model.to(self.device)
@@ -80,6 +81,7 @@ class Trainer():
         self.dataset_size=dataset_size
         self.no_shape_classifier=no_shape_classifier
         self.train_evaluator = None
+        self.calc_fid = calc_fid
 
     def __call__(self, data_loader,
                  epochs=10,
@@ -105,7 +107,7 @@ class Trainer():
         if wandb_log:
             if self.train_evaluator is None:
                 train_evaluator = Evaluator(model=self.model, loss_f=self.loss_f, device=self.device, dset_name=self.dset_name, seed=self.seed, higgins_drop_slow=self.higgins_drop_slow, 
-                    sample_size=self.sample_size, dataset_size=self.dataset_size, no_shape_classifier=self.no_shape_classifier)
+                    sample_size=self.sample_size, dataset_size=self.dataset_size, no_shape_classifier=self.no_shape_classifier, calc_fid=self.calc_fid)
             else:
                 train_evaluator = self.train_evaluator
         

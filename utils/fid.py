@@ -164,7 +164,6 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     vae_label = []
     vae_model.eval()
     device='cuda' if torch.cuda.is_available() else 'cpu'
-    device = 'cpu' # Override for now
     vae_model = vae_model.to(device)
     
     original_input = []

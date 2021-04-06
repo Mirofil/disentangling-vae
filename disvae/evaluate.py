@@ -70,7 +70,8 @@ class Evaluator:
                  seed=None,
                  dset_name=None,
                  sample_size=35,
-                 dataset_size=1500):
+                 dataset_size=1500,
+                 calc_fid=False):
 
         self.device = device
         self.loss_f = loss_f
@@ -88,6 +89,7 @@ class Evaluator:
         self.sample_size=sample_size
         self.dataset_size=dataset_size
         self.static_models = {}
+        self.calc_fid = calc_fid
         
     def __call__(self, data_loader, is_metrics=False, is_losses=True):
         """Compute all test losses.
@@ -178,6 +180,7 @@ class Evaluator:
                 if total_len > max_len:
                     break
 
+            
             fid = get_fid_value(torch.utils.data.DataLoader(torch.utils.data.TensorDataset(torch.cat(small_dset_x), torch.cat(small_dset_y)), batch_size=dataloader.batch_size, shuffle=False), self.model)
         
         if dataset in ['dsprites', 'mpi3dtoy', '3dshapes']: # Most metrics are only applicable for datasets with ground truth variation factors
