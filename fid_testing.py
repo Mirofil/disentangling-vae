@@ -238,12 +238,7 @@ if __name__ == "__main__":
 
     mode = sys.argv[1] # get the name of the dataset you want to measure FID for
     
-    if mode == 'cifar10'  or mode == 'cifar100' or mode == 'mnist':
-        # Get the dataset
-        dataloader1 = get_dataloaders(mode, batch_size=128)[0]
-    else:
-        print("Entered wrong name for dataset") 
-        sys.exit()
+    dataloader1 = get_dataloaders(mode, batch_size=128)[0]
 
     fid_value = get_fid_value(dataloader1, vae_model)
 
