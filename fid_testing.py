@@ -173,11 +173,11 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     print("Running VAE model.")
     for inputs, labels in dataloader:
         inputs = inputs.to(device)
-        outputs = vae_model(inputs)[0]
-        for i in range(outputs.shape[0]): #why do we have two separate loops for outputs and labels?
+        with torch.no_grad():
+            outputs = vae_model(inputs)[0]
+        for i in range(outputs.shape[0]):
             vae_output.append(outputs[i])
             original_input.append(inputs[i])
-        for i in range(labels.shape[0]):
             vae_label.append(labels[i])
             original_label.append(labels[i])
     original_input = torch.stack(original_input)
