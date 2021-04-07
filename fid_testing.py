@@ -67,6 +67,7 @@ def _get_activations(dataloader, length, model, batch_size, dims, device='cuda' 
         batch = batch.to(device)
 
         with torch.no_grad():
+            batch = batch.float()
             pred = model(batch)[0]
 
         # If model output is not scalar, apply global spatial average pooling.
@@ -160,31 +161,69 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     model = INCEPTION_V3
 
     # calculated reconstructed data using VAE
-    vae_output = []
-    vae_label = []
+#     vae_output = []
+#     vae_label = []
     vae_model.eval()
     device='cuda' if torch.cuda.is_available() else 'cpu'
     device = 'cpu' # Override for now
     vae_model = vae_model.to(device)
     
-    original_input = []
-    original_label = []
+#     original_input = []
+#     original_label = []
     
+#     print("Running VAE model.")
+#     for inputs, labels in dataloader:
+#         inputs = inputs.to(device)
+#         with torch.no_grad():
+#             outputs = vae_model(inputs)[0]
+#         for i in range(outputs.shape[0]):
+#             vae_output.append(outputs[i])
+#             original_input.append(inputs[i])
+#             vae_label.append(labels[i])
+#             original_label.append(labels[i])
+#     original_input = torch.stack(original_input)
+#     original_label = torch.stack(original_label)
+#     vae_output = torch.stack(vae_output)
+#     vae_label = torch.stack(vae_label)
+#     print(vae_output.shape)
+
+    for inputs, labels in dataloader:
+        shapeI = list(inputs[0].shape)
+        shapeL = list(labels[0].shape)
+        break
+    
+
+    shapeI.insert(0, batch_size)
+    shapeL.insert(0, batch_size)
+
+    original_input = np.empty(shapeI)
+    original_label = np.empty(shapeL)
+    vae_output = np.empty(shapeI)
+    
+    count = 0
     print("Running VAE model.")
     for inputs, labels in dataloader:
+        
         inputs = inputs.to(device)
         with torch.no_grad():
             outputs = vae_model(inputs)[0]
-        for i in range(outputs.shape[0]):
-            vae_output.append(outputs[i])
-            original_input.append(inputs[i])
-            vae_label.append(labels[i])
-            original_label.append(labels[i])
-    original_input = torch.stack(original_input)
-    original_label = torch.stack(original_label)
-    vae_output = torch.stack(vae_output)
-    vae_label = torch.stack(vae_label)
-    print(vae_output.shape)
+               
+        if count != 0: # if not first batch then just append by concatenation
+            original_input = np.concatenate((original_input, inputs.cpu().detach().numpy()), axis=0)
+            original_label = np.concatenate((original_label, labels.cpu().detach().numpy()), axis=0)
+            vae_output = np.concatenate((vae_output, outputs.cpu().detach().numpy()), axis=0)
+        else:
+            original_input[:original_input.shape[0]] = inputs.cpu().detach().numpy()
+            original_label[:original_input.shape[0]] = labels.cpu().detach().numpy()
+            vae_output[:original_input.shape[0]] = outputs.cpu().detach().numpy()
+        
+        count = count + 1
+    
+    original_input = torch.from_numpy(original_input)
+    original_label = torch.from_numpy(original_label)
+    vae_output = torch.from_numpy(vae_output)
+    vae_label = original_label
+    print("Tensor shape:", vae_output.shape)
     
     print("Outputs calculated. Constructing dataloader.")
 
