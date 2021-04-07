@@ -165,7 +165,7 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
 #     vae_label = []
     vae_model.eval()
     device='cuda' if torch.cuda.is_available() else 'cpu'
-    device = 'cpu' # Override for now
+#    device = 'cpu' # Override for now
     vae_model = vae_model.to(device)
     
 #     original_input = []
@@ -201,7 +201,7 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     vae_output = np.empty(shapeI)
     
     count = 0
-    print("Running VAE model.")
+    print("Running VAE model on device", device)
     for inputs, labels in dataloader:
         
         inputs = inputs.to(device)
@@ -236,7 +236,7 @@ def get_fid_value(dataloader, vae_model, batch_size = 128):
     
     dataset_reconstructed = CustomTensorDataset(tensors=(vae_output, vae_label), transform = Transform)
     dataloader_reconstructed = DataLoader(dataset_reconstructed, batch_size=batch_size, sampler=sampler)
-    print("dataloader_reconstructed built")
+    print("dataloader_reconstructed built. Shape is ", dataset_reconstructed[1][0].shape)
     #print(dataset_reconstructed[1][0].shape)
 
     # get the model dimensions
