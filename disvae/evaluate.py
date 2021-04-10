@@ -8,6 +8,7 @@ from timeit import default_timer
 import sys
 from numpy.random import RandomState
 import time
+import math
 
 from tqdm import trange, tqdm
 import numpy as np
@@ -492,8 +493,8 @@ class Evaluator:
         for method in methods.keys():
             if method == "VAE":
                 with torch.no_grad():
-                    mu1, _ = self.model.encode(imgs_sampled1.to(self.device))
-                    mu2, _ = self.model.encode(imgs_sampled2.to(self.device))  
+                    mu1, _ = self.model.encoder(imgs_sampled1.to(self.device))
+                    mu2, _ = self.model.encoder(imgs_sampled2.to(self.device))  
                     if not self.use_NN_classifier:
                         mu1 = mu1.cpu().detach().numpy()
                         mu2 = mu2.cpu().detach().numpy()  
@@ -648,7 +649,7 @@ class Evaluator:
             for x, label in dataloader:
                 batch_size = x.size(0)
                 idcs = slice(n, n + batch_size)
-                q_zCx[idcs, :, 0], q_zCx[idcs, :, 1] = self.model.encode(x.to(self.device))
+                q_zCx[idcs, :, 0], q_zCx[idcs, :, 1] = self.model.encoder(x.to(self.device))
                 n += batch_size
 
         params_zCX = q_zCx.unbind(-1)
